@@ -44,7 +44,6 @@
 #include <libethercat/error_codes.h>
 
 #include <assert.h>
-#include <errno.h>
 #include <string.h>
 
 #ifdef LIBETHERCAT_HAVE_INTTYPES_H

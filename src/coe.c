@@ -43,7 +43,6 @@
 // cppcheck-suppress misra-c2012-21.6
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <assert.h>
 
 const osal_char_t *get_sdo_info_error_string(osal_uint32_t errorcode) {

@@ -43,7 +43,6 @@
 // cppcheck-suppress misra-c2012-21.6
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <assert.h>
 
 struct ec_coe_object;

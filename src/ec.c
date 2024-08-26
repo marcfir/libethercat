@@ -36,12 +36,10 @@
 #include <libosal/io.h>
 #include <libethercat/config.h>
 
-#include <errno.h>
 
 // cppcheck-suppress misra-c2012-21.6
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 #include <stdarg.h>
 #include <limits.h>
 #include <assert.h>
@@ -215,12 +213,12 @@ int ec_destroy_pd_groups(ec_t *pec) {
 }
 
 static const osal_char_t *get_state_string(ec_state_t state) {
-    static const osal_char_t state_string_boot[]    = (char[]){ "EC_STATE_BOOT" };
-    static const osal_char_t state_string_init[]    = (char[]){ "EC_STATE_INIT" };
-    static const osal_char_t state_string_preop[]   = (char[]){ "EC_STATE_PREOP" };
-    static const osal_char_t state_string_safeop[]  = (char[]){ "EC_STATE_SAFEOP" };
-    static const osal_char_t state_string_op[]      = (char[]){ "EC_STATE_OP" };
-    static const osal_char_t state_string_unknown[] = (char[]){ "EC_STATE_UNKNOWN" };
+    static const osal_char_t state_string_boot[]    = "EC_STATE_BOOT";
+    static const osal_char_t state_string_init[]    = "EC_STATE_INIT";
+    static const osal_char_t state_string_preop[]   = "EC_STATE_PREOP";
+    static const osal_char_t state_string_safeop[]  = "EC_STATE_SAFEOP";
+    static const osal_char_t state_string_op[]      = "EC_STATE_OP";
+    static const osal_char_t state_string_unknown[] = "EC_STATE_UNKNOWN";
 
     const osal_char_t *ret;
 
@@ -1763,7 +1761,7 @@ static void cb_distributed_clocks(struct ec *pec, pool_entry_t *p_entry, ec_data
         // get clock difference
         pec->dc.act_diff = signed64_diff(pec->dc.rtc_time, pec->dc.dc_time) % pec->main_cycle_interval; 
         if (pec->dc.act_diff > (pec->main_cycle_interval/2)) { pec->dc.act_diff -= pec->main_cycle_interval; }
-        else if (pec->dc.act_diff < (-1. * (pec->main_cycle_interval / 2))) { pec->dc.act_diff += pec->main_cycle_interval; }
+        else if (pec->dc.act_diff < (-1. * (pec->main_cycle_interval / 2.0))) { pec->dc.act_diff += pec->main_cycle_interval; }
         else {}
 
         if (pec->dc.mode == dc_mode_ref_clock) {

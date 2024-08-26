@@ -12,8 +12,8 @@
 #include <libethercat/error_codes.h>
 
 #include <stdio.h>
-#include <math.h>
 #include <inttypes.h>
+#include <time.h>
 
 #if LIBETHERCAT_HAVE_UNISTD_H == 1
 #include <unistd.h>
@@ -124,6 +124,26 @@ static osal_void_t* cyclic_task(osal_void_t* param) {
     }
 
     no_verbose_log(0, NULL, "cyclic_task: exiting!\n");
+    return NULL;
+}
+
+void dc_cb(void *arg, int num) { 
+    if (dc_mode == dc_mode_ref_clock) {
+        cycle_rate += ec.dc.timer_correction;
+    }
+
+    osal_uint64_t time_end = osal_timer_gettime_nsec();
+    osal_uint64_t time_start = osal_trace_get_last_time(tx_start);
+
+    osal_trace_time(roundtrip_duration, time_end - time_start);
+}
+
+
+void pdg_cb(void *arg, int num) { 
+    osal_uint64_t time_end = osal_timer_gettime_nsec();
+    osal_uint64_t time_start = osal_trace_get_last_time(tx_start);
+
+    osal_trace_time(roundtrip_duration, time_end - time_start);
 }
 
 int main(int argc, char **argv) {
@@ -333,28 +353,12 @@ int main(int argc, char **argv) {
 
     ec.dc.control.kp = dc_kp;
     ec.dc.control.ki = dc_ki;
-    ec_configure_dc(&ec, cycle_rate, dc_mode, ({
-                void anon_cb(void *arg, int num) { 
-                    if (dc_mode == dc_mode_ref_clock) {
-                        cycle_rate += ec.dc.timer_correction;
-                    }
-
-                    osal_uint64_t time_end = osal_timer_gettime_nsec();
-                    osal_uint64_t time_start = osal_trace_get_last_time(tx_start);
-
-                    osal_trace_time(roundtrip_duration, time_end - time_start);
-                } &anon_cb; }), NULL);
+    ec_configure_dc(&ec, cycle_rate, dc_mode, dc_cb, NULL);
 
     // -----------------------------------------------------------
     // creating process data groups
     ec_create_pd_groups(&ec, 1);
-    ec_configure_pd_group(&ec, 0, 1, ({
-                void anon_cb(void *arg, int num) { 
-                    osal_uint64_t time_end = osal_timer_gettime_nsec();
-                    osal_uint64_t time_start = osal_trace_get_last_time(tx_start);
-
-                    osal_trace_time(roundtrip_duration, time_end - time_start);
-                } &anon_cb; }), NULL);
+    ec_configure_pd_group(&ec, 0, 1, pdg_cb, NULL);
         
     ec.pd_groups[0].use_lrw = disable_lrw == 0 ? 1 : 0;
     ec.pd_groups[0].overlapping = disable_overlapping == 0 ? 1 : 0;

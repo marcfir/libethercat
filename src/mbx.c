@@ -47,7 +47,6 @@
 // cppcheck-support misra-c2012-21.6
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 
 #ifndef max
 #define max(a, b)  ((a) > (b) ? (a) : (b))

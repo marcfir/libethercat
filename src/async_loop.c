@@ -45,7 +45,6 @@
 #include "libethercat/async_loop.h"
 
 #include <assert.h>
-#include <errno.h>
 #include <string.h>
 // cppcheck-suppress misra-c2012-21.6
 #include <stdio.h>
