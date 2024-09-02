@@ -52,6 +52,10 @@ static struct hw_sock_raw hw_sock_raw;
 #include <libethercat/hw_sock_raw_mmaped.h>
 static struct hw_sock_raw_mmaped hw_sock_raw_mmaped;
 #endif
+#if LIBETHERCAT_BUILD_DEVICE_SOTXTIME == 1
+#include <libethercat/hw_sock_sotxtime.h>
+static struct hw_sock_sotxtime hw_sock_sotxtime;
+#endif
 
 void no_log(int lvl, void *user, const char *format, ...) 
 {};
@@ -98,26 +102,34 @@ osal_trace_t *tx_start;
 osal_trace_t *tx_duration;
 osal_trace_t *roundtrip_duration;
 
+static osal_uint64_t next_start_time(osal_uint64_t cycle_time, osal_uint64_t offset){
+    osal_uint64_t next_cycle = (osal_timer_gettime_nsec() / cycle_time) * cycle_time;
+    return next_cycle + offset;
+}
+
 //! Cyclic (high priority realtime) task for sending EtherCAT datagrams.
 static osal_bool_t cyclic_task_running = OSAL_FALSE;
 static osal_void_t* cyclic_task(osal_void_t* param) {
     ec_t *pec = (ec_t *)param;
-    osal_uint64_t abs_timeout = osal_timer_gettime_nsec();
+    osal_uint64_t next_tx_time = osal_timer_gettime_nsec();
     osal_uint64_t time_start = 0u;
     osal_uint64_t time_end = 0u;
 
     no_verbose_log(0, NULL, "cyclic_task: running endless loop, cycle rate is %lu\n", cycle_rate);
 
     while (cyclic_task_running == OSAL_TRUE) {
-        abs_timeout += cycle_rate;
-        (void)wait_time(abs_timeout);
+        next_tx_time += cycle_rate;
+       
         time_start = osal_trace_point(tx_start);
-
+        (void)wait_time(next_tx_time-100000);
         // execute one EtherCAT cycle
-        ec_send_distributed_clocks_sync(pec);
+        ec_send_distributed_clocks_sync_with_rtc(pec, next_tx_time);
         ec_send_process_data(pec);
 
         // transmit cyclic packets (and also acyclic if there are any)
+        #if LIBETHERCAT_BUILD_DEVICE_SOTXTIME == 1
+            hw_high_set_next_txtime(&hw_sock_sotxtime, next_tx_time);
+        #endif
         hw_tx(pec->phw);
 
         osal_trace_time(tx_duration, osal_timer_gettime_nsec() - time_start);
@@ -289,6 +301,18 @@ int main(int argc, char **argv) {
 
         if (ret == 0) {
             phw = &hw_sock_raw_mmaped.common;
+        }
+    }
+#endif
+#if LIBETHERCAT_BUILD_DEVICE_SOTXTIME == 1
+    if (strncmp(intf, "sock-sotxtime:", 14) == 0) {
+        intf = &intf[14];
+
+        ec_log(10, "HW_OPEN", "Opening interface as mmaped SOCK_RAW: %s\n", intf);
+        ret = hw_device_sock_sotxtime_open(&hw_sock_sotxtime, &ec, intf, base_prio - 1, base_affinity, 0,CLOCK_TAI);
+
+        if (ret == 0) {
+            phw = &hw_sock_sotxtime.common;
         }
     }
 #endif

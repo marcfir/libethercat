@@ -382,6 +382,14 @@ int ec_send_process_data(ec_t *pec);
  */
 int ec_send_distributed_clocks_sync(ec_t *pec);
 
+//! send distributed clock sync datagram
+/*!
+ * \param pec          ethercat master pointer
+ * \param act_rtc_time rtc time. 0 = Get time when calling funtion. Else use provided time. 
+ * \return 0 on success
+ */
+int ec_send_distributed_clocks_sync_with_rtc(ec_t *pec, osal_uint64_t act_rtc_time);
+
 //! \brief Send broadcast read to ec state.
 /*!
  * \param[in] pec           Pointer to ethercat master structure, 
