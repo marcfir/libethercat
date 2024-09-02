@@ -66,11 +66,12 @@ typedef struct hw_sock_raw_mmaped {
 //! Opens EtherCAT hw device.
 /*!
  * \param[in]   phw_sock_raw_mmaped     Pointer to sock_raw_mmmaped hw handle. 
+ * \param[in]   pec                     Pointer to master structure.
  * \param[in]   devname                 Null-terminated string to EtherCAT hw device name.
  *
  * \return 0 or negative error code
  */
-int hw_device_sock_raw_mmaped_open(struct hw_sock_raw_mmaped *phw_sock_raw_mmaped, const osal_char_t *devname);
+int hw_device_sock_raw_mmaped_open(struct hw_sock_raw_mmaped *phw_sock_raw_mmaped, struct ec *pec, const osal_char_t *devname);
 
 #endif // LIBETHERCAT_HW_SOCK_RAW_MMAPED_H
 

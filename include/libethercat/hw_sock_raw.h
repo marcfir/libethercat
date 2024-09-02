@@ -60,7 +60,7 @@ typedef struct hw_sock_raw {
 //! Opens EtherCAT hw device.
 /*!
  * \param[in]   phw         Pointer to hw handle. 
- * \param[in]   pec                 Pointer to master structure.
+ * \param[in]   pec         Pointer to master structure.
  * \param[in]   devname     Null-terminated string to EtherCAT hw device name.
  * \param[in]   prio        Priority for receiver thread.
  * \param[in]   cpu_mask    CPU mask for receiver thread.

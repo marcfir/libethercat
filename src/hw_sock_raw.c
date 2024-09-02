@@ -118,7 +118,7 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
     int ifindex;
     
     if (try_grant_cap_net_raw_init() == -1) {
-        ec_log(10, "hw_open", "grant_cap_net_raw unsuccessfull, maybe we are "
+        ec_log(10, "HW_OPEN", "grant_cap_net_raw unsuccessfull, maybe we are "
                 "not allowed to open a raw socket\n");
     }
 
@@ -139,33 +139,48 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
 
     if (ret == EC_OK) { 
         int i;
+        int ret_set_opt;
 
         // set timeouts
         struct timeval timeout;
         timeout.tv_sec = 0;
         timeout.tv_usec = 1;
-        setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-        setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        ret_set_opt = setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error setting SO_RCVTIMEO: %s\n", strerror(errno));
+        }
+        ret_set_opt = setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error setting SO_SNDTIMEO: %s\n", strerror(errno));
+        }
 
         // do not route our frames
         i = 1;
-        setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_DONTROUTE, &i, sizeof(i));
+        ret_set_opt = setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_DONTROUTE, &i, sizeof(i));
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error setting SO_DONTROUTE: %s\n", strerror(errno));
+        }
 
         // attach to out network interface
         (void)strcpy(ifr.ifr_name, devname);
-        ioctl(phw_sock_raw->sockfd, SIOCGIFINDEX, &ifr);
+        ret_set_opt = ioctl(phw_sock_raw->sockfd, SIOCGIFINDEX, &ifr);
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error setting SIOCGIFINDEX: %s\n", strerror(errno));
+        }
         ifindex = ifr.ifr_ifindex;
         (void)strcpy(ifr.ifr_name, devname);
         ifr.ifr_flags = 0;
-        ioctl(phw_sock_raw->sockfd, SIOCGIFFLAGS, &ifr);
+        ret_set_opt = ioctl(phw_sock_raw->sockfd, SIOCGIFFLAGS, &ifr);
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error setting ifr_flags: %s\n", strerror(errno));
+        }
 
         osal_bool_t iff_running = (ifr.ifr_flags & IFF_RUNNING) == 0 ? OSAL_FALSE : OSAL_TRUE;
         ifr.ifr_flags = ifr.ifr_flags | IFF_PROMISC | IFF_BROADCAST | IFF_UP;
-        /*int ret =*/ ioctl(phw_sock_raw->sockfd, SIOCSIFFLAGS, &ifr);
-        //    if (ret != 0) {
-        //        ec_log(1, "HW_OPEN", "error setting interface %s: %s\n", devname, strerror(errno));
-        //        goto error_exit;
-        //    }
+        ret_set_opt = ioctl(phw_sock_raw->sockfd, SIOCSIFFLAGS, &ifr);
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error setting ifr_flags: %s\n", strerror(errno));
+        }
         
         osal_timer_t up_timeout;
         osal_timer_init(&up_timeout, 10000000000);
@@ -195,13 +210,17 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
     }
 
     if (ret == EC_OK) {
+        int ret_set_opt;
         ec_log(10, "HW_OPEN", "binding raw socket to %s\n", devname);
 
         (void)memset(&ifr, 0, sizeof(ifr));
         (void)strncpy(ifr.ifr_name, devname, IFNAMSIZ);
-        ioctl(phw_sock_raw->sockfd, SIOCGIFMTU, &ifr);
+        ret_set_opt = ioctl(phw_sock_raw->sockfd, SIOCGIFMTU, &ifr);
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error set SIOCGIFMTU: %s\n", strerror(errno));
+        }
         phw_sock_raw->common.mtu_size = ifr.ifr_mtu;
-        ec_log(10, "hw_open", "got mtu size %d\n", phw_sock_raw->common.mtu_size);
+        ec_log(10, "HW_OPEN", "got mtu size %d\n", phw_sock_raw->common.mtu_size);
 
         // bind socket to protocol, in this case RAW EtherCAT */
         struct sockaddr_ll sll;
@@ -209,10 +228,15 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
         sll.sll_family = AF_PACKET;
         sll.sll_ifindex = ifindex;
         sll.sll_protocol = htons(ETH_P_ECAT);
-        bind(phw_sock_raw->sockfd, (struct sockaddr *) &sll, sizeof(sll));
+        ret_set_opt = bind(phw_sock_raw->sockfd, (struct sockaddr *) &sll, sizeof(sll));
+        if (ret_set_opt != 0) {
+            ec_log(1, "HW_OPEN", "error binding: %s\n", strerror(errno));
+            ret = EC_ERROR_UNAVAILABLE;
+        }
     }
 
     if (ret == EC_OK) {
+        ec_log(10, "HW_OPEN", "Opend phw with size %lu\n", sizeof(struct hw_sock_raw));
         phw_sock_raw->rxthreadrunning = 1;
         osal_task_attr_t attr;
         attr.policy = OSAL_SCHED_POLICY_FIFO;

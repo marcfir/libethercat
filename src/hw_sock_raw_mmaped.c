@@ -106,16 +106,17 @@ static int try_grant_cap_net_raw_init(void) {
  *
  * \return 0 or negative error code
  */
-int hw_device_sock_raw_mmaped_open(struct hw_sock_raw_mmaped *phw_sock_raw_mmaped, const osal_char_t *devname) {
+int hw_device_sock_raw_mmaped_open(struct hw_sock_raw_mmaped *phw_sock_raw_mmaped, struct ec *pec, const osal_char_t *devname) {
     int ret = EC_OK;
     struct ifreq ifr;
     int ifindex;
     
     if (try_grant_cap_net_raw_init() == -1) {
-        ec_log(10, "hw_open", "grant_cap_net_raw unsuccessfull, maybe we are "
+        ec_log(10, "HW_OPEN", "grant_cap_net_raw unsuccessfull, maybe we are "
                 "not allowed to open a raw socket\n");
     }
     
+    hw_open(&phw_sock_raw_mmaped->common, pec);
     phw_sock_raw_mmaped->common.send = hw_device_sock_raw_mmaped_send;
     phw_sock_raw_mmaped->common.recv = hw_device_sock_raw_mmaped_recv;
     phw_sock_raw_mmaped->common.send_finished = hw_device_sock_raw_mmaped_send_finished;
@@ -224,7 +225,7 @@ int hw_device_sock_raw_mmaped_open(struct hw_sock_raw_mmaped *phw_sock_raw_mmape
         (void)strncpy(ifr.ifr_name, devname, IFNAMSIZ);
         ioctl(phw_sock_raw_mmaped->sockfd, SIOCGIFMTU, &ifr);
         phw_sock_raw_mmaped->common.mtu_size = ifr.ifr_mtu;
-        ec_log(10, "hw_open", "got mtu size %d\n", phw_sock_raw_mmaped->common.mtu_size);
+        ec_log(10, "HW_OPEN", "got mtu size %d\n", phw_sock_raw_mmaped->common.mtu_size);
 
         // bind socket to protocol, in this case RAW EtherCAT */
         struct sockaddr_ll sll;
@@ -233,6 +234,9 @@ int hw_device_sock_raw_mmaped_open(struct hw_sock_raw_mmaped *phw_sock_raw_mmape
         sll.sll_ifindex = ifindex;
         sll.sll_protocol = htons(ETH_P_ECAT);
         bind(phw_sock_raw_mmaped->sockfd, (struct sockaddr *) &sll, sizeof(sll));
+    }
+    if(ret == EC_OK){
+        ec_log(10, "HW_OPEN", "Opend phw with size %lu\n", sizeof(struct hw_sock_raw_mmaped));
     }
 
     return ret;

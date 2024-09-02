@@ -41,12 +41,9 @@
 #include <libethercat/config.h>
 
 #include "libethercat/pool.h"
-#include "libethercat/common.h"
-#include "libethercat/ec.h"
 #include "libethercat/error_codes.h"
 
 #include <assert.h>
-#include <errno.h>
 #include <string.h>
 // cppcheck-suppress misra-c2012-21.6
 #include <stdio.h>
@@ -219,4 +216,3 @@ void pool_put_head(pool_t *pp, pool_entry_t *entry) {
     
     osal_mutex_unlock(&pp->_pool_lock);
 }
-

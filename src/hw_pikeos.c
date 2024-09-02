@@ -178,6 +178,7 @@ int hw_device_pikeos_open(struct hw_pikeos *phw, const osal_char_t *devname, int
     }
 
     if (ret == EC_OK) {
+        ec_log(10, "HW_OPEN", "Opend phw with size %lu\n", sizeof(struct hw_pikeos));
         phw->rxthreadrunning = 1;
         osal_task_attr_t attr;
         attr.policy = OSAL_SCHED_POLICY_FIFO;

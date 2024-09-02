@@ -135,6 +135,7 @@ int hw_device_file_open(struct hw_file *phw_file, struct ec *pec, const osal_cha
     }
 
     if (ret == EC_OK) {
+        ec_log(10, "HW_OPEN", "Opend phw with size %lu\n", sizeof(struct hw_file));
         if (phw_file->polling_mode == OSAL_FALSE) {
             phw_file->rxthreadrunning = 1;
             osal_task_attr_t attr;

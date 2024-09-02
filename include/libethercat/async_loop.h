@@ -40,13 +40,11 @@
 #ifndef LIBETHERCAT_MESSAGE_POOL_H
 #define LIBETHERCAT_MESSAGE_POOL_H
 
+// #include <libosal/posix/task.h>
 #include <libosal/queue.h>
-
 #include <libosal/types.h>
 #include <libosal/mutex.h>
 #include <libosal/semaphore.h>
-
-#include "libethercat/common.h"
 
 struct ec;
 
