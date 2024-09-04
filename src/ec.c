@@ -1438,7 +1438,7 @@ static void cb_process_data_group(struct ec *pec, pool_entry_t *p_entry, ec_data
     pd->recv_missed_lrw = 0;
 
     wkc = ec_datagram_wkc(p_dg);
-    if (pd->pdin_len > 0) {
+    if (pd->pdin_len > 0 && wkc == wkc_expected) {
         if ((pd->use_lrw != 0) || (pd->overlapping)) {
             // use this if lrw overlapping or lrd command
             (void)memcpy(&pd->pd[pd->pdout_len], ec_datagram_payload(p_dg), pd->pdin_len);
