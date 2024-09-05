@@ -47,7 +47,9 @@
 typedef struct hw_sock_raw {
     struct hw_common common;
 
-    int sockfd;                     //!< raw socket file descriptor
+    int sockfd_rx;                     //!< raw socket file descriptor
+    int sockfd_high;                     //!< raw socket file descriptor
+    int sockfd_low;                     //!< raw socket file descriptor
     
     osal_uint8_t send_frame[ETH_FRAME_LEN]; //!< \brief Static send frame.
     osal_uint8_t recv_frame[ETH_FRAME_LEN]; //!< \brief Static receive frame.

@@ -37,6 +37,7 @@
  *
  */
 
+#include "libethercat/hw.h"
 #include <libethercat/config.h>
 #include <libethercat/hw_sock_raw.h>
 #include <libethercat/ec.h>
@@ -131,8 +132,18 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
     phw_sock_raw->common.close = hw_device_sock_raw_close;
 
     // create raw socket connection
-    phw_sock_raw->sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ECAT));
-    if (phw_sock_raw->sockfd <= 0) {
+    phw_sock_raw->sockfd_rx = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ECAT));
+    if (phw_sock_raw->sockfd_rx <= 0) {
+        ec_log(1, "HW_OPEN", "socket error on opening SOCK_RAW: %s\n", strerror(errno));
+        ret = EC_ERROR_UNAVAILABLE;
+    }
+    phw_sock_raw->sockfd_high = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ECAT));
+    if (phw_sock_raw->sockfd_high <= 0) {
+        ec_log(1, "HW_OPEN", "socket error on opening SOCK_RAW: %s\n", strerror(errno));
+        ret = EC_ERROR_UNAVAILABLE;
+    }
+    phw_sock_raw->sockfd_low = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ECAT));
+    if (phw_sock_raw->sockfd_low <= 0) {
         ec_log(1, "HW_OPEN", "socket error on opening SOCK_RAW: %s\n", strerror(errno));
         ret = EC_ERROR_UNAVAILABLE;
     }
@@ -144,24 +155,32 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
         struct timeval timeout;
         timeout.tv_sec = 0;
         timeout.tv_usec = 1;
-        setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-        setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        setsockopt(phw_sock_raw->sockfd_rx, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        setsockopt(phw_sock_raw->sockfd_high, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+        setsockopt(phw_sock_raw->sockfd_low, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
         // do not route our frames
         i = 1;
-        setsockopt(phw_sock_raw->sockfd, SOL_SOCKET, SO_DONTROUTE, &i, sizeof(i));
+        setsockopt(phw_sock_raw->sockfd_rx, SOL_SOCKET, SO_DONTROUTE, &i, sizeof(i)); // Maybe not required
+        setsockopt(phw_sock_raw->sockfd_high, SOL_SOCKET, SO_DONTROUTE, &i, sizeof(i));
+        setsockopt(phw_sock_raw->sockfd_low, SOL_SOCKET, SO_DONTROUTE, &i, sizeof(i));
+
 
         // attach to out network interface
         (void)strcpy(ifr.ifr_name, devname);
-        ioctl(phw_sock_raw->sockfd, SIOCGIFINDEX, &ifr);
+        ioctl(phw_sock_raw->sockfd_rx, SIOCGIFINDEX, &ifr);
         ifindex = ifr.ifr_ifindex;
         (void)strcpy(ifr.ifr_name, devname);
         ifr.ifr_flags = 0;
-        ioctl(phw_sock_raw->sockfd, SIOCGIFFLAGS, &ifr);
+        ioctl(phw_sock_raw->sockfd_rx, SIOCGIFFLAGS, &ifr);
+        // ioctl(phw_sock_raw->sockfd_high, SIOCGIFFLAGS, &ifr);
+        // ioctl(phw_sock_raw->sockfd_low, SIOCGIFFLAGS, &ifr);
 
         osal_bool_t iff_running = (ifr.ifr_flags & IFF_RUNNING) == 0 ? OSAL_FALSE : OSAL_TRUE;
         ifr.ifr_flags = ifr.ifr_flags | IFF_PROMISC | IFF_BROADCAST | IFF_UP;
-        /*int ret =*/ ioctl(phw_sock_raw->sockfd, SIOCSIFFLAGS, &ifr);
+        /*int ret =*/ ioctl(phw_sock_raw->sockfd_rx, SIOCSIFFLAGS, &ifr);
+        ioctl(phw_sock_raw->sockfd_high, SIOCSIFFLAGS, &ifr);
+        ioctl(phw_sock_raw->sockfd_low, SIOCSIFFLAGS, &ifr);
         //    if (ret != 0) {
         //        ec_log(1, "HW_OPEN", "error setting interface %s: %s\n", devname, strerror(errno));
         //        goto error_exit;
@@ -170,7 +189,7 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
         osal_timer_t up_timeout;
         osal_timer_init(&up_timeout, 10000000000);
         while (iff_running == OSAL_FALSE) {
-            ioctl(phw_sock_raw->sockfd, SIOCGIFFLAGS, &ifr);
+            ioctl(phw_sock_raw->sockfd_rx, SIOCGIFFLAGS, &ifr);
             iff_running = (ifr.ifr_flags & IFF_RUNNING) == 0 ? OSAL_FALSE : OSAL_TRUE;
             if (iff_running == OSAL_TRUE) {
                 ec_log(10, "HW_OPEN", "interface %s is RUNNING now, wait additional 2 sec for link to be established!\n", devname);
@@ -189,8 +208,12 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
         if (iff_running == OSAL_FALSE) {
             ec_log(1, "HW_OPEN", "unable to bring interface %s UP!\n", devname);
             ret = EC_ERROR_UNAVAILABLE;
-            close(phw_sock_raw->sockfd);
-            phw_sock_raw->sockfd = 0;
+            close(phw_sock_raw->sockfd_rx);
+            close(phw_sock_raw->sockfd_high);
+            close(phw_sock_raw->sockfd_low);
+            phw_sock_raw->sockfd_rx = 0;
+            phw_sock_raw->sockfd_high = 0;
+            phw_sock_raw->sockfd_low = 0;
         }
     }
 
@@ -199,7 +222,7 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
 
         (void)memset(&ifr, 0, sizeof(ifr));
         (void)strncpy(ifr.ifr_name, devname, IFNAMSIZ);
-        ioctl(phw_sock_raw->sockfd, SIOCGIFMTU, &ifr);
+        ioctl(phw_sock_raw->sockfd_rx, SIOCGIFMTU, &ifr);
         phw_sock_raw->common.mtu_size = ifr.ifr_mtu;
         ec_log(10, "hw_open", "got mtu size %d\n", phw_sock_raw->common.mtu_size);
 
@@ -209,7 +232,9 @@ int hw_device_sock_raw_open(struct hw_sock_raw *phw_sock_raw, struct ec *pec, co
         sll.sll_family = AF_PACKET;
         sll.sll_ifindex = ifindex;
         sll.sll_protocol = htons(ETH_P_ECAT);
-        bind(phw_sock_raw->sockfd, (struct sockaddr *) &sll, sizeof(sll));
+        bind(phw_sock_raw->sockfd_rx, (struct sockaddr *) &sll, sizeof(sll));
+        bind(phw_sock_raw->sockfd_high, (struct sockaddr *) &sll, sizeof(sll));
+        bind(phw_sock_raw->sockfd_low, (struct sockaddr *) &sll, sizeof(sll));
     }
 
     if (ret == EC_OK) {
@@ -239,7 +264,9 @@ int hw_device_sock_raw_close(struct hw_common *phw) {
     phw_sock_raw->rxthreadrunning = 0;
     osal_task_join(&phw_sock_raw->rxthread, NULL);
 
-    close(phw_sock_raw->sockfd);
+    close(phw_sock_raw->sockfd_rx);
+    close(phw_sock_raw->sockfd_high);
+    close(phw_sock_raw->sockfd_low);
 
     return ret;
 }
@@ -258,7 +285,7 @@ int hw_device_sock_raw_recv(struct hw_common *phw) {
     ec_frame_t *pframe = (ec_frame_t *) &phw_sock_raw->recv_frame;
 
     // using tradional recv function
-    osal_ssize_t bytesrx = recv(phw_sock_raw->sockfd, pframe, ETH_FRAME_LEN, 0);
+    osal_ssize_t bytesrx = recv(phw_sock_raw->sockfd_rx, pframe, ETH_FRAME_LEN, 0);
 
     if (bytesrx > 0) {
         hw_process_rx_frame(phw, pframe);
@@ -339,20 +366,37 @@ int hw_device_sock_raw_send(struct hw_common *phw, ec_frame_t *pframe, pooltype_
 
     int ret = EC_OK;
     struct hw_sock_raw *phw_sock_raw = container_of(phw, struct hw_sock_raw, common);
+    if (pool_type==POOL_HIGH){
+        // no more datagrams need to be sent or no more space in frame
+        osal_ssize_t bytestx = send(phw_sock_raw->sockfd_high, pframe, pframe->len, 0);
 
-    // no more datagrams need to be sent or no more space in frame
-    osal_ssize_t bytestx = send(phw_sock_raw->sockfd, pframe, pframe->len, 0);
+        if ((osal_ssize_t)pframe->len != bytestx) {
+            ec_log(1, "HW_TX", "got only %" PRId64 " bytes out of %d bytes "
+                    "through.\n", bytestx, pframe->len);
 
-    if ((osal_ssize_t)pframe->len != bytestx) {
-        ec_log(1, "HW_TX", "got only %" PRId64 " bytes out of %d bytes "
-                "through.\n", bytestx, pframe->len);
+            if (bytestx == -1) {
+                ec_log(1, "HW_TX", "error: %s\n", strerror(errno));
+            }
 
-        if (bytestx == -1) {
-            ec_log(1, "HW_TX", "error: %s\n", strerror(errno));
+            ret = EC_ERROR_HW_SEND;
         }
+    }else{
+        // no more datagrams need to be sent or no more space in frame
+        osal_ssize_t bytestx = send(phw_sock_raw->sockfd_low, pframe, pframe->len, 0);
 
-        ret = EC_ERROR_HW_SEND;
+        if ((osal_ssize_t)pframe->len != bytestx) {
+            ec_log(1, "HW_TX", "got only %" PRId64 " bytes out of %d bytes "
+                    "through.\n", bytestx, pframe->len);
+
+            if (bytestx == -1) {
+                ec_log(1, "HW_TX", "error: %s\n", strerror(errno));
+            }
+
+            ret = EC_ERROR_HW_SEND;
+        }
     }
+
+  
 
     return ret;
 }
