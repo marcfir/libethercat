@@ -53,6 +53,7 @@
 #include "libethercat/pool.h"
 #include "libethercat/async_loop.h"
 #include "libethercat/eeprom.h"
+#include <stdatomic.h>
 
 /** \defgroup ec_group EC Master
  *
@@ -238,6 +239,7 @@ typedef struct ec {
     int eeprom_log;                 //!< flag whether to log eeprom to stdout
     ec_state_t master_state;        //!< expected EtherCAT master state
     int state_transition_pending;   //!< state transition is currently pending
+    _Atomic osal_bool_t state_transition_cancled; //!< state transition should be cancled
 
     int threaded_startup;           //!< running state machine in threads for slave
     
@@ -376,6 +378,15 @@ int ec_transmit_no_reply(ec_t *pec, osal_uint8_t cmd, osal_uint32_t adr,
  * \return Reached master state.
  */
 int ec_set_state(ec_t *pec, ec_state_t state);
+
+//! \brief Cancle the current state transition of the ethercat bus.
+/*!
+ * This function can be called from an separate thread.
+ *
+ * \param[in] pec           Pointer to ethercat master structure, 
+ *                          which you got from \link ec_open \endlink.
+ */
+void ec_cancle_statetransition(ec_t *pec);
 
 #define ec_group_will_be_sent(pec, group) (int)((((pec)->pd_groups[(group)].divisor_cnt+1) % (pec)->pd_groups[(group)].divisor) == 0)   //!< \brief Group datagram will be send on next time step.
 #define ec_group_was_sent(pec, group)     (int)((pec)->pd_groups[(group)].divisor_cnt == 0)                                             //!< \brief Group datagram was sent.

@@ -564,6 +564,10 @@ int ec_slave_set_state(ec_t *pec, osal_uint16_t slave, ec_state_t state) {
             if ((wkc != 0u) && !(act_state & EC_STATE_ERROR)) {
                 break;
             }
+            if (pec->state_transition_cancled) {
+                ret = EC_ERROR_ABORTED;
+                break;
+            }
         } while (osal_timer_expired(&timeout) != OSAL_ERR_TIMEOUT);
     } else {
         ec_log(10, get_transition_string(transition), "slave %2d: %s state requested\n", slave, ecat_state_2_string(state));
@@ -592,11 +596,12 @@ int ec_slave_set_state(ec_t *pec, osal_uint16_t slave, ec_state_t state) {
                     }
                 }
             }
-
             osal_sleep(1000000);
-        } while ((act_state != state) && (osal_timer_expired(&timeout) != OSAL_ERR_TIMEOUT));
+        } while ((act_state != state) && (osal_timer_expired(&timeout) != OSAL_ERR_TIMEOUT) && !pec->state_transition_cancled);
  
-        if (osal_timer_expired(&timeout) == OSAL_ERR_TIMEOUT) {
+        if (pec->state_transition_cancled) {
+            ec_log(10, get_transition_string(transition), "slave %2d: transition to %d aborted by user\n", slave, state);
+        } else if (osal_timer_expired(&timeout) == OSAL_ERR_TIMEOUT) {
             ec_log(1, get_transition_string(transition), "slave %2d: did not respond on state switch to %d\n", slave, state);
             ret = EC_ERROR_SLAVE_NOT_RESPONDING;
         }
@@ -922,9 +927,12 @@ int ec_slave_state_transition(ec_t *pec, osal_uint16_t slave, ec_state_t state) 
                         break;
                     }
                 } 
-            } while (osal_timer_expired(&error_reset_timeout) != OSAL_ERR_TIMEOUT);
+            } while (osal_timer_expired(&error_reset_timeout) != OSAL_ERR_TIMEOUT && !pec->state_transition_cancled);
 
-            if (osal_timer_expired(&error_reset_timeout) == OSAL_ERR_TIMEOUT) {
+            if(pec->state_transition_cancled){
+                ec_log(10, "SLAVE_TRANSITION", "transition aborted by user (slave %2d)\n", slave);
+                ret = EC_ERROR_ABORTED;
+            }else if (osal_timer_expired(&error_reset_timeout) == OSAL_ERR_TIMEOUT) {
                 ec_log(10, "SLAVE_TRANSITION", "slave %2d: try to reset PDI\n", slave);
                 osal_uint8_t reset_vals[] = { (osal_uint8_t)'R', (osal_uint8_t)'E', (osal_uint8_t)'S' };
                 for (int i = 0; i < 3; ++i) {

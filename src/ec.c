@@ -33,6 +33,7 @@
  *
  */
 
+#include "libosal/types.h"
 #include <libosal/io.h>
 #include <libethercat/config.h>
 
@@ -1066,9 +1067,14 @@ int ec_set_state(ec_t *pec, ec_state_t state) {
         pec->master_state = state;
     }
 
+    pec->state_transition_cancled = OSAL_FALSE;
     pec->state_transition_pending = 0;
 
     return pec->master_state;
+}
+
+void ec_cancle_statetransition(ec_t *pec){
+    pec->state_transition_cancled = OSAL_TRUE;
 }
 
 //! open ethercat master
@@ -1095,6 +1101,7 @@ int ec_open(ec_t *pec, struct hw_common *phw, int eeprom_log) {
         pec->threaded_startup   = 0;
         pec->consecutive_max_miss   = 10;
         pec->state_transition_pending = 0;
+        pec->state_transition_cancled = OSAL_FALSE;
 
         // init values for distributed clocks
         pec->dc.have_dc         = 0;
